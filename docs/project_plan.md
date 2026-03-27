@@ -1,4 +1,4 @@
-Murmur Analytics Pipeline — Project Plan
+Murmur Analytics Pipeline — Project Plan (revised)
 
 Phase 1 — Foundation
 Snowflake schema + repo setup
@@ -21,7 +21,7 @@ Get SSH tunnel working with Sean's credentials
 Write extract/postgres.py — connection, query per table, incremental logic using updated_at and _extracted_at
 Write extract/snowflake_loader.py — connect to Snowflake, upsert rows, handle VARIANT for raw_state
 Test full extract-load manually for all five tables
-Handle the JSONB unpacking for game_states — extract phase, current_location, player_count, enemy_count, flag_count as columns, keep full blob as VARIANT
+Handle JSONB unpacking for game_states — extract phase, current_location, player_count, enemy_count, flag_count as columns, keep full blob as VARIANT
 
 DE concepts: Incremental vs full load patterns, idempotency, JSONB extraction, Snowflake connector, upsert patterns, SSH tunneling, read-only DB credentials.
 
@@ -35,6 +35,17 @@ Add error handling and basic alerting
 Test full DAG run end to end
 
 DE concepts: DAG structure, task dependencies, scheduling, XComs, Airflow operators, idempotent tasks, backfill logic. This is your Month 3 Airflow curriculum applied directly.
+
+Phase 3b — CI/CD
+Automated testing and deployment
+Tasks:
+
+Set up GitHub Actions workflow that runs dbt test on every pull request
+Add a second workflow that triggers the Airflow DAG on push to main or on schedule
+Add linting and formatting checks — ruff for Python, sqlfluff for SQL
+Write a basic CONTRIBUTING.md so the pipeline has documented standards
+
+DE concepts: GitHub Actions workflow syntax, CI/CD pipeline design, automated testing as a safety net, code quality tooling, the difference between CI (test on PR) and CD (deploy on merge). This is your Month 5 CI/CD curriculum content applied to a real project with real tests worth protecting.
 
 Phase 4 — Transformation
 dbt models on top of raw tables
@@ -57,7 +68,7 @@ dim_players — character names, classes, session membership
 Write mart models:
 
 mart_campaign_health — event distribution, combat frequency, death rate, session length by campaign
-mart_session_cost — proxy cost from message and event counts (real cost added Phase 2 when billing tables come in)
+mart_session_cost — proxy cost from message and event counts
 
 
 Write dbt tests — not null, unique, accepted values on event_type and outcome
@@ -97,7 +108,7 @@ Feature pipeline pulls from Snowflake, trains on session-level aggregates
 MLflow tracks experiments
 Long term: instrument the classifier as a quality signal the looper monitor can use
 
-ML concepts: Feature engineering from event streams, classification on imbalanced data (most sessions don't end in clean victory/defeat yet), MLflow experiment tracking, the operational ML loop.
+ML concepts: Feature engineering from event streams, classification on imbalanced data, MLflow experiment tracking, the operational ML loop.
 
 Portfolio narrative
-"Built an end-to-end analytics pipeline for a production AI TTRPG platform in active alpha. Extracted game event and player behavior data from operational Postgres into Snowflake using Airflow, modeled with dbt into campaign health and cost analytics, and built a context retrieval API that reduced looper token spend by summarizing session history. Extended with a DM quality classifier trained on narrative event sequences. Stack: Python, Airflow, Snowflake, dbt, FastAPI, MLflow."
+"Built an end-to-end analytics pipeline for a production AI TTRPG platform in active alpha. Extracted game event and player behavior data from operational Postgres into Snowflake using Airflow, modeled with dbt into campaign health and cost analytics, and built a context retrieval API that reduced looper token spend by summarizing session history. Automated with GitHub Actions CI/CD — dbt tests run on every PR, pipeline deploys on merge. Extended with a DM quality classifier trained on narrative event sequences. Stack: Python, Airflow, Snowflake, dbt, FastAPI, MLflow, GitHub Actions."
