@@ -1,0 +1,22 @@
+# Environment
+.env
+*.pyc
+__pycache__/
+.venv/
+venv/
+
+# dbt
+transforms/murmur_dbt/target/
+transforms/murmur_dbt/dbt_packages/
+transforms/murmur_dbt/logs/
+transforms/murmur_dbt/.user.yml
+
+# Airflow
+logs/
+airflow.db
+airflow.cfg
+
+# OS
+.DS_Store
+*.egg-info/
+dist/

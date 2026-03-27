@@ -1,0 +1,7 @@
+apache-airflow==2.8.1
+psycopg2-binary==2.9.9
+snowflake-connector-python==3.7.0
+dbt-core==1.7.0
+dbt-snowflake==1.7.0
+python-dotenv==1.0.0
+pandas==2.2.0
