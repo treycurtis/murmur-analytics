@@ -11,9 +11,6 @@ clean-targets: ["target", "dbt_packages"]
 
 models:
   murmur_dbt:
-    raw:
-      +schema: raw
-      +materialized: table
     staging:
       +schema: staging
       +materialized: view

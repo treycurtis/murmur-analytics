@@ -1,114 +1,181 @@
-Murmur Analytics Pipeline — Project Plan (revised)
+# Murmur Analytics Pipeline
 
-Phase 1 — Foundation
-Snowflake schema + repo setup
-Tasks:
+End-to-end analytics pipeline for [Murmur](https://github.com/seanmcgowanx/murmur) — a production AI TTRPG platform in active alpha. Extracts game event and player behavior data from operational Postgres into Snowflake, models it with dbt into campaign health and cost analytics, and serves insights back to the game via a context retrieval API.
 
-Create murmur-analytics repo with the folder structure we defined
-Run the raw schema DDL in Snowflake
-Push Cleo's data dictionary to docs/
-Set up .env.example with Postgres and Snowflake connection variables
-Set up requirements.txt (sqlalchemy, psycopg2, snowflake-connector-python, python-dotenv)
+**Stack:** Python · Airflow · Snowflake · dbt · FastAPI · MLflow · GitHub Actions
 
-DE concepts: Snowflake architecture (databases, schemas, warehouses), separation of raw vs transformed layers, environment variable management, project structure best practices.
-Status: Mostly done pending repo creation and DDL execution.
+---
 
-Phase 2 — Extraction
-Pull data from Postgres into Snowflake raw tables
-Tasks:
+## Repository Structure
 
-Get SSH tunnel working with Sean's credentials
-Write extract/postgres.py — connection, query per table, incremental logic using updated_at and _extracted_at
-Write extract/snowflake_loader.py — connect to Snowflake, upsert rows, handle VARIANT for raw_state
-Test full extract-load manually for all five tables
-Handle JSONB unpacking for game_states — extract phase, current_location, player_count, enemy_count, flag_count as columns, keep full blob as VARIANT
+```
+murmur-analytics/
+├── dags/
+│   └── murmur_extract.py        # Airflow DAG — one task per source table
+├── docs/
+│   ├── data_dictionary.md       # Source table definitions and field notes
+│   └── project_plan.md          # Full phase-by-phase plan
+├── extract/
+│   ├── postgres.py              # Postgres connection + incremental queries
+│   └── snowflake_loader.py      # Snowflake upsert + VARIANT handling
+├── transforms/
+│   └── murmur_dbt/
+│       ├── dbt_project.yml
+│       └── models/
+│           ├── raw/             # source() declarations
+│           ├── staging/         # stg_* — one per raw table, light cleaning
+│           └── marts/           # fct_*, dim_*, mart_* — analytics layer
+└── requirements.txt
+```
 
-DE concepts: Incremental vs full load patterns, idempotency, JSONB extraction, Snowflake connector, upsert patterns, SSH tunneling, read-only DB credentials.
+---
 
-Phase 3 — Orchestration
-Wrap extraction in an Airflow DAG
-Tasks:
+## Data Sources
 
-Set up local Airflow (Docker Compose)
-Write dags/murmur_extract.py — one task per table, dependency chain, schedule
-Add error handling and basic alerting
-Test full DAG run end to end
+Five tables extracted from the Murmur production Postgres database via SSH tunnel. All land in `murmur_analytics.raw` in Snowflake.
 
-DE concepts: DAG structure, task dependencies, scheduling, XComs, Airflow operators, idempotent tasks, backfill logic. This is your Month 3 Airflow curriculum applied directly.
+| Table | Description |
+|-------|-------------|
+| `game_sessions` | Core entity — one row per campaign. Outcome, duration, channel, owner. |
+| `game_states` | JSONB game world state — players, enemies, location, phase, flags. Loaded as VARIANT. |
+| `narrative_entries` | Append-only event log — scene, combat, dialogue, death, level_up, etc. |
+| `chat_messages` | Full chat log — player inputs, DM responses, system messages. |
+| `session_members` | Player ↔ session membership, character names, platform identity. |
 
-Phase 3b — CI/CD
-Automated testing and deployment
-Tasks:
+**Design note:** `game_states.state_data` is loaded as a raw VARIANT blob. All unpacking (phase, current_location, player counts, etc.) happens in dbt staging — not in the extract layer. This keeps extraction dumb and preserves a replayable source of truth as the JSONB schema evolves.
 
-Set up GitHub Actions workflow that runs dbt test on every pull request
-Add a second workflow that triggers the Airflow DAG on push to main or on schedule
-Add linting and formatting checks — ruff for Python, sqlfluff for SQL
-Write a basic CONTRIBUTING.md so the pipeline has documented standards
+---
 
-DE concepts: GitHub Actions workflow syntax, CI/CD pipeline design, automated testing as a safety net, code quality tooling, the difference between CI (test on PR) and CD (deploy on merge). This is your Month 5 CI/CD curriculum content applied to a real project with real tests worth protecting.
+## Snowflake Layout
 
-Phase 4 — Transformation
-dbt models on top of raw tables
-Tasks:
+```
+murmur_analytics (database)
+└── raw        ← extract layer lands here
+└── staging    ← dbt stg_* models
+└── marts      ← dbt fct_*, dim_*, mart_* models
+```
 
-Initialize dbt project in transforms/murmur_dbt/
-Write staging models — one per raw table, light cleaning and type casting
-Write fact models:
+Warehouse: `dev_wh` (XS) on AWS us-east-1.
 
-fct_narrative_events — events with session, campaign, phase, timestamp
-fct_chat_messages — messages with sender role, game phase, session context
+---
 
+## Phases
 
-Write dimension models:
+### ✅ Phase 1 — Foundation
+Repo structure, Snowflake DDL, data dictionary, environment config.
 
-dim_sessions — one row per session with outcome, duration, campaign, player count
-dim_players — character names, classes, session membership
+### 🔄 Phase 2 — Extraction
+SSH tunnel → `extract/postgres.py` (incremental via `updated_at`) → `extract/snowflake_loader.py` (upsert + VARIANT). Manual end-to-end test across all five tables.
 
+**Incremental logic:** uses `updated_at` for `game_sessions`, `game_states`, `session_members`. Uses `created_at` for append-only tables (`narrative_entries`, `chat_messages`).
 
-Write mart models:
+### ⬜ Phase 2.5 — dbt Staging *(starts as soon as rows exist in raw)*
+Initialize sources in `models/raw/`. Write one `stg_*` model per raw table — type casting, column renaming, VARIANT unpacking for `game_states`. Write `not null` and `unique` tests. Don't wait for Airflow.
 
-mart_campaign_health — event distribution, combat frequency, death rate, session length by campaign
-mart_session_cost — proxy cost from message and event counts
+### ⬜ Phase 3 — Orchestration
+Wrap extraction in `dags/murmur_extract.py`. One task per table, dependency chain, daily schedule. Docker Compose Airflow locally.
 
+### ⬜ Phase 3b — CI/CD
+GitHub Actions: dbt tests on every PR, pipeline trigger on merge to main. Linting: `ruff` (Python), `sqlfluff` (SQL).
 
-Write dbt tests — not null, unique, accepted values on event_type and outcome
-Write dbt documentation
+### ⬜ Phase 4 — Core Transformation
+Facts, dims, marts covering session engagement and narrative progression:
 
-DE concepts: dbt project structure, staging/mart layering, ref() and source(), incremental models, schema tests, documentation, the analytics engineering workflow. This is your Month 4 dbt certification prep applied to real data.
+| Model | Description |
+|-------|-------------|
+| `fct_narrative_events` | Events with session, campaign, phase, timestamp |
+| `fct_chat_messages` | Messages with sender role, phase, session context |
+| `dim_sessions` | One row per session — outcome, duration, campaign, player count |
+| `dim_players` | Character names, classes, session membership |
+| `mart_campaign_health` | Event distribution, combat frequency, death rate by campaign |
+| `mart_session_cost` | Proxy token cost from message and event counts |
 
-Phase 5 — Context Retrieval API
-Feed insights back into Murmur and the looper
-Tasks:
+### ⬜ Phase 4.5 — Extended Analytics *(informed by Cleo feedback)*
+Four additional analytical surfaces surfaced from collaboration with Cleo. These represent the highest-value gaps in current DM tuning and game balance visibility.
 
-Write a lightweight FastAPI endpoint that queries Snowflake for a pre-computed campaign narrative summary
-Summary built from fct_narrative_events grouped by campaign — key events, phase distribution, notable moments
-Looper calls this at session start instead of passing raw transcript
-Document the endpoint and wire it into looper.py as an optional flag
+**Session health monitoring** — leading indicators of session death before it happens. Stalled sessions, disengaged players, games that never hit a narrative milestone. Built on top of `mart_campaign_health`. Goal: catch problems systematically rather than noticing them after the fact.
 
-DE concepts: Serving data from a warehouse, API design, connecting analytical output back to operational systems. This is the bridge between DE and the ML thread — same pattern as the AI catalog bot capstone.
+| Model | Description |
+|-------|-------------|
+| `mart_session_health` | Engagement signals, activity gaps, milestone completion flags |
 
-Phase 6 — Extend with billing and conversation data
-Phase 2 of the raw layer
-Tasks:
+**Combat and balance visibility** — currently invisible without reading every transcript. Action distribution across players, damage dealt/taken, death frequency, class contribution. Requires unpacking combat events from `game_states` VARIANT and `narrative_entries` event types.
 
-Confirm with Sean which billing tables are okay to include
-Add raw.credit_transactions and raw.usage_log to the extract pipeline
-Add raw.conversation_history with tool call parsing
-Extend mart_session_cost with real token spend
-Add mart_dm_behavior — tool call frequency, compaction events, average iterations per turn
+| Model | Description |
+|-------|-------------|
+| `fct_combat_events` | One row per combat action — actor, target, outcome, phase |
+| `mart_combat_balance` | Per-session and per-campaign action distribution, death rate, class load |
 
-DE concepts: Extending an existing pipeline, schema evolution, parsing nested JSON for behavioral analytics.
+**DM behavior tracking** — tool call frequency, compaction events, average iterations per turn, response pattern changes across prompt versions. Foundation for correlating DM behavior changes with session outcomes.
 
-ML thread integration
-Runs parallel starting around Phase 4
-Once fct_narrative_events and fct_chat_messages exist as clean feature sources:
+| Model | Description |
+|-------|-------------|
+| `mart_dm_behavior` | Tool call rate, compaction frequency, iteration depth per session |
 
-Build a DM quality classifier — predict session outcome from event patterns
-Feature pipeline pulls from Snowflake, trains on session-level aggregates
-MLflow tracks experiments
-Long term: instrument the classifier as a quality signal the looper monitor can use
+**Prompt change instrumentation** — tag sessions by active prompt version so downstream models can isolate the effect of DM tuning changes. Enables A/B comparison of prompt variants with statistical rigor instead of qualitative judgment. Coordinate with Sean on version tagging strategy.
 
-ML concepts: Feature engineering from event streams, classification on imbalanced data, MLflow experiment tracking, the operational ML loop.
+**Note on compaction quality:** Cleo flagged narrative coherence pre/post compaction as a meaningful signal — what the DM remembers vs. what actually happened. Tracking this is valid but requires NLP tooling not yet in scope. Parking for post-classifier work.
 
-Portfolio narrative
-"Built an end-to-end analytics pipeline for a production AI TTRPG platform in active alpha. Extracted game event and player behavior data from operational Postgres into Snowflake using Airflow, modeled with dbt into campaign health and cost analytics, and built a context retrieval API that reduced looper token spend by summarizing session history. Automated with GitHub Actions CI/CD — dbt tests run on every PR, pipeline deploys on merge. Extended with a DM quality classifier trained on narrative event sequences. Stack: Python, Airflow, Snowflake, dbt, FastAPI, MLflow, GitHub Actions."
+### ⬜ Phase 5 — Context Retrieval API
+FastAPI endpoint serving pre-computed campaign narrative summaries from `fct_narrative_events`. Looper calls this at session start instead of passing raw transcript — reduces token spend.
+
+### ⬜ Phase 6 — Billing + Conversation Extension
+Add `credit_transactions`, `usage_log`, `conversation_history` to the raw layer. Extend `mart_session_cost` with real token spend. Extend `mart_dm_behavior` with compaction events and average iterations per turn.
+
+### ⬜ ML Thread *(parallel, starts ~Phase 4)*
+DM quality classifier — predict session outcome from narrative event patterns and DM behavior signals. Feature pipeline from Snowflake. MLflow experiment tracking.
+
+**Feature candidates (informed by Cleo):**
+- Narrative event distribution and sequencing
+- Combat action distribution and class contribution
+- Message cadence and activity gap patterns
+- DM tool call frequency and iteration depth
+- Prompt version tags (once Phase 4.5 instrumentation is live)
+
+**Training data constraint:** Classifier requires meaningful session volume before training is viable. N=5 campaigns is not enough. Coordinate with Sean on whether the Billy looper can generate realistic synthetic sessions to bulk up training data ahead of sufficient real session accumulation.
+
+**Long-term:** Classifier output feeds back to Cleo as a systematic training signal for prompt optimization — closing the loop between analytics and DM tuning. This is the architectural goal: Cleo makes judgment calls on tone and narrative, the classifier provides the evidence base for whether those calls are working.
+
+---
+
+## Environment Setup
+
+Copy `.env.example` to `.env` and fill in credentials:
+
+```bash
+cp .env.example .env
+```
+
+Required variables:
+```
+# Postgres (via SSH tunnel)
+PG_HOST=localhost
+PG_PORT=5432
+PG_DB=
+PG_USER=
+PG_PASSWORD=
+
+# Snowflake
+SNOWFLAKE_ACCOUNT=
+SNOWFLAKE_USER=
+SNOWFLAKE_PASSWORD=
+SNOWFLAKE_DATABASE=murmur_analytics
+SNOWFLAKE_SCHEMA=raw
+SNOWFLAKE_WAREHOUSE=dev_wh
+SNOWFLAKE_ROLE=
+```
+
+Install dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+---
+
+## Portfolio Narrative
+
+> "Built an end-to-end analytics pipeline for a production AI TTRPG platform in active alpha. Extracted game event and player behavior data from operational Postgres into Snowflake using Airflow, modeled with dbt into campaign health, combat balance, and DM behavior analytics. Built a context retrieval API that reduced looper token spend by summarizing session history. Instrumented prompt version tracking to enable statistically rigorous A/B testing of DM tuning changes — turning qualitative game feel feedback into measurable signal. Extended with a DM quality classifier trained on narrative event sequences and combat patterns, with output feeding directly back to the AI collaborator as a systematic prompt optimization loop. Stack: Python, Airflow, Snowflake, dbt, FastAPI, MLflow, GitHub Actions."
+
+---
+
+*Source of truth for session continuity. Update phase status and design notes as the project evolves.*

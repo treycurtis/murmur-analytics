@@ -1,4 +1,3 @@
-# Murmur Data Dictionary
 
 # Murmur Data Dictionary
 
@@ -12,7 +11,7 @@ Intended for Trey's analytics pipeline — clone the production tables into a ra
 The core entity. One row per campaign/game. Links to all other tables via session_id.
 
 | Column | Type | Nullable | Description |
-|--------|------|----------|-------------|
+|--------|------|----------|-------------|  
 | session_id | UUID | **PK** | Unique session identifier. Auto-generated. |
 | channel_id | VARCHAR(255) | NO | Platform-specific channel identifier (Signal group ID, web room ID). Indexed. |
 | channel_type | VARCHAR(50) | NO | Platform type: "web", "signal". |
