@@ -1,7 +1,11 @@
 sshtunnel==0.4.0
 sqlalchemy==2.0.30
 psycopg2-binary==2.9.9
-snowflake-connector-python>=4.2.0
+snowflake-connector-python[pandas]>=4.2.0
 python-dotenv==1.0.0
 dbt-core==1.11.7
 dbt-snowflake==1.11.3
+pandas==2.3.3
+pyarrow==23.0.1
+tzdata==2025.3
+numpy==2.4.4

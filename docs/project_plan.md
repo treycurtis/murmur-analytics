@@ -1,6 +1,6 @@
 # Murmur Analytics Pipeline
 
-End-to-end analytics pipeline for [Murmur](https://github.com/seanmcgowanx/murmur) — a production AI TTRPG platform in active alpha. Extracts game event and player behavior data from operational Postgres into Snowflake, models it with dbt into campaign health and cost analytics, and serves insights back to the game via a context retrieval API.
+End-to-end [analytics pipeline](https://github.com/treycurtis/murmur-analytics) for [Murmur](https://github.com/seangibat/murmur) — a production AI TTRPG platform in active alpha. Extracts game event and player behavior data from operational Postgres into Snowflake, models it with dbt into campaign health and cost analytics, and serves insights back to the game via a context retrieval API.
 
 **Stack:** Python · Airflow · Snowflake · dbt · FastAPI · MLflow · GitHub Actions
 
@@ -148,12 +148,18 @@ cp .env.example .env
 
 Required variables:
 ```
+# SSH Tunnel
+SSH_HOST=
+SSH_PORT=22
+SSH_USER=
+SSH_KEY_PATH=~/.ssh/id_rsa
+
 # Postgres (via SSH tunnel)
-PG_HOST=localhost
-PG_PORT=5432
-PG_DB=
-PG_USER=
-PG_PASSWORD=
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_DB=
+POSTGRES_USER=
+POSTGRES_PASSWORD=
 
 # Snowflake
 SNOWFLAKE_ACCOUNT=

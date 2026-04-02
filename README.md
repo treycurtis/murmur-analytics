@@ -22,3 +22,12 @@ extract/        Postgres extraction and Snowflake load logic
 transforms/     dbt project (murmur_dbt)
 docs/           Data dictionary and documentation
 ```
+
+## Reminders
+
+Make sure the snowflake connector is installed with pandas as a dependency
+so it pulls the version the connector needs:
+
+```bash
+uv pip install "snowflake-connector-python[pandas]"
+```
