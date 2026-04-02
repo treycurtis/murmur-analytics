@@ -150,9 +150,11 @@ game_sessions ─┬── game_states          (1:1, session_id PK+FK)
 
 | Table | Source | Description |
 |-------|--------|-------------|
-| `users` | Postgres | Registered user accounts |
-| `events` | Postgres | User activity events |
-| `sessions` | Postgres | User sessions |
+| `game_sessions` | Postgres | Core session entity. One row per campaign. |
+| `game_states` | Postgres | Full JSONB game state blob. One row per session. |
+| `narrative_entries` | Postgres | Append-only event log. Scene, combat, dialogue, discovery events. |
+| `chat_messages` | Postgres | Full chat log. Player inputs, DM responses, system messages. |
+| `session_members` | Postgres | Player-to-session mapping. Platform identity to character. |
 
 ---
 
@@ -168,4 +170,18 @@ _Business-facing aggregations and dimensional models._
 
 ---
 
-_Last updated: 2026-03-27_
+## Out of Scope (available in production, not extracted)
+
+| Table | Description |
+|-------|-------------|
+| `conversation_history` | Full LLM messages array per session. Candidate for Phase 6 / ML thread. |
+| `credit_balances` | Current credit balance per user. Phase 6 billing. |
+| `credit_transactions` | Credit purchase and spend history. Phase 6 billing. |
+| `message_log` | Platform message delivery log. Latency analysis. |
+| `signal_groups` | Signal group registration metadata. |
+| `users` | Registered user accounts. |
+| `alembic_version` | DB migration tracking. Not analytically useful. |
+
+---
+
+_Last updated: 2026-04-02_
