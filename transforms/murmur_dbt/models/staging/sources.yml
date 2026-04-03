@@ -1,0 +1,13 @@
+
+version: 2
+
+sources:
+  - name: murmur
+    database: MURMUR_ANALYTICS
+    schema: RAW
+    tables:
+      - name: game_sessions
+      - name: game_states
+      - name: session_members
+      - name: narrative_entries
+      - name: chat_messages
